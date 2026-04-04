@@ -1,0 +1,49 @@
+\newpage
+\section{Kiến trúc tổng quan (System Architecture)}
+
+Hệ thống hoạt động theo luồng dữ liệu (pipeline) gồm 5 giai đoạn chính, được minh họa trong Hình~\ref{fig:pipeline}.
+
+\begin{figure}[h!]
+\centering
+\begin{tikzpicture}[
+    node distance=0.8cm,
+    box/.style={rectangle, draw=blue!60, fill=blue!8, thick, minimum height=2.2cm, minimum width=2.8cm, text width=2.5cm, align=center, font=\small, rounded corners=3pt},
+    arrow/.style={->, thick, >=stealth, blue!60}
+]
+    \node[box] (data) {Dữ liệu thô\\(HDFS)\\{\scriptsize .txt files}};
+    \node[box, right=of data] (preprocess) {Tiền xử lý\\(Spark)\\{\scriptsize Cleaning \&\\Tokenization}};
+    \node[box, right=of preprocess] (vector) {Vector hóa\\{\scriptsize Shingling +\\MinHash}};
+    \node[box, right=of vector] (lsh) {LSH Indexing\\{\scriptsize Banding \&\\Bucketing}};
+    \node[box, right=of lsh] (query) {Query \&\\Gợi ý sách};
+    
+    \draw[arrow] (data) -- (preprocess);
+    \draw[arrow] (preprocess) -- (vector);
+    \draw[arrow] (vector) -- (lsh);
+    \draw[arrow] (lsh) -- (query);
+\end{tikzpicture}
+\caption{Pipeline tổng quan của hệ thống gợi ý sách tương tự sử dụng LSH}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Mô tả chi tiết từng giai đoạn}
+
+\begin{table}[h!]
+\centering
+\caption{Chi tiết các giai đoạn trong pipeline}
+\label{tab:pipeline-stages}
+\begin{tabularx}{\textwidth}{|c|X|X|X|}
+\hline
+\textbf{Giai đoạn} & \textbf{Mô tả} & \textbf{Input} & \textbf{Output} \\
+\hline
+1. Dữ liệu thô & Sách dưới định dạng \texttt{.txt} được thu thập từ Project Gutenberg và lưu trữ trên HDFS & Raw \texttt{.txt} files & Các file text trên HDFS \\
+\hline
+2. Tiền xử lý & Spark đọc dữ liệu từ HDFS, thực hiện làm sạch và chuẩn hóa văn bản & Text files từ HDFS & Cleaned text (RDD/DataFrame) \\
+\hline
+3. Vector hóa & Chuyển nội dung sách thành biểu diễn số thông qua k-Shingling và MinHash signatures & Cleaned text & MinHash signature vectors \\
+\hline
+4. LSH Indexing & Áp dụng kỹ thuật Banding để phân nhóm các signature vào các bucket hash & MinHash signatures & Candidate pairs (bucket assignments) \\
+\hline
+5. Query & Với một đầu sách cho trước, tìm các sách nằm cùng bucket và xếp hạng theo Jaccard similarity & Query book + LSH index & Top-K sách tương tự \\
+\hline
+\end{tabularx}
+\end{table}

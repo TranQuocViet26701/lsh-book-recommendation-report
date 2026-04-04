@@ -1,0 +1,90 @@
+\newpage
+\section{Tiến độ Thực hiện}
+
+\subsection{Công việc đã hoàn thành}
+
+\subsubsection{Thiết lập môi trường và Thu thập dữ liệu}
+
+\begin{itemize}
+    \item Khởi tạo Git repository với cấu trúc project chuẩn (45 files), sử dụng \texttt{uv} làm package manager, \texttt{Makefile} cho các lệnh phát triển và triển khai.
+    \item Xây dựng Docker dev environment với PySpark local mode + Jupyter Notebook, đảm bảo cả nhóm có thể phát triển và chạy thử trên cùng một môi trường.
+    \item Thu thập 3.000+ sách tiếng Anh từ Project Gutenberg dưới dạng plain text (.txt).
+    \item Tạo sample dataset 100 sách cho môi trường dev, giúp iterate nhanh khi phát triển.
+    \item Xây dựng script trích xuất metadata (tên sách, tác giả, thể loại, năm xuất bản) từ Gutenberg header, lưu dưới dạng Parquet.
+\end{itemize}
+
+\subsubsection{Preprocessing Pipeline}
+
+Hoàn thành toàn bộ pipeline tiền xử lý văn bản, chạy trên PySpark:
+
+\begin{enumerate}
+    \item \textbf{Remove Gutenberg boilerplate:} Sử dụng regex để detect và loại bỏ header/footer markers (\texttt{*** START/END OF THE PROJECT GUTENBERG EBOOK ***}).
+    \item \textbf{Lowercase + Regex clean:} Chuyển toàn bộ text sang chữ thường, loại bỏ ký tự đặc biệt và số.
+    \item \textbf{Tokenization:} Tách văn bản thành các từ (word-level).
+    \item \textbf{Stopword removal:} Loại bỏ English stopwords sử dụng danh sách NLTK.
+\end{enumerate}
+
+Output được lưu dưới dạng Parquet với schema \texttt{[book\_id, tokens, num\_tokens]}. Unit tests đã viết và pass trên sample data.
+
+\subsubsection{Thuật toán LSH Core}
+
+Triển khai đầy đủ 3 module chính của thuật toán LSH:
+
+\begin{itemize}
+    \item \textbf{k-Shingling (\texttt{shingling.py}):} Tạo word-level trigrams ($k{=}3$) từ cleaned tokens. Mỗi cuốn sách được biểu diễn bằng một tập hợp shingle.
+    \item \textbf{MinHash (\texttt{minhash.py}):} Tính MinHash signatures với $n$ hàm hash ($n{=}100$ trên cluster). Sử dụng hash family $h(x) = (ax + b) \mod p$. Đã verify tính chất $P(h_{\min}(A) = h_{\min}(B)) \approx J(A,B)$ trên sample data.
+    \item \textbf{LSH Banding (\texttt{lsh.py}):} Chia signature thành $b{=}20$ bands $\times$ $r{=}5$ rows. Hash mỗi band vào bucket. Hai tài liệu là candidates nếu chia sẻ ít nhất 1 bucket. Threshold $\approx 0.55$.
+\end{itemize}
+
+Signatures và LSH index được persist dưới dạng Parquet. Unit tests cho cả 3 module đã pass.
+
+\subsubsection{Query Module}
+
+Hoàn thành module truy vấn sách tương tự:
+
+\begin{center}
+\texttt{book\_id} $\rightarrow$ lookup signature $\rightarrow$ tìm candidates cùng bucket $\rightarrow$ exact Jaccard $\rightarrow$ rank $\rightarrow$ Top-K
+\end{center}
+
+Đã test thành công trên sample dataset: query một cuốn sách trả về danh sách Top-K sách tương tự kèm Jaccard score.
+
+\subsection{Công việc đang triển khai}
+
+\begin{itemize}
+    \item \textbf{FastAPI server:} Thiết kế xong tất cả endpoints (\texttt{GET /books}, \texttt{GET /similar/\{id\}}, \texttt{POST /datasets/upload}, \texttt{POST /ingest}, \texttt{GET /metrics}). Đang implement.
+    \item \textbf{Streamlit frontend:} 4 trang (Browse Books, Similar Books, Dataset Management, Dashboard) -- scaffold đã tạo, đang implement logic kết nối API.
+    \item \textbf{Dataset management API:} Upload .txt/.zip, validate, trigger ingestion pipeline -- đang implement.
+\end{itemize}
+
+\subsection{Công việc bị chặn (Blocked)}
+
+\begin{table}[H]
+\centering
+\caption{Các task bị blocked và giải pháp}
+\begin{tabularx}{\textwidth}{X X X}
+\toprule
+\textbf{Task} & \textbf{Lý do} & \textbf{Giải pháp} \\
+\midrule
+Thuê VPS + cài Hadoop cluster (3 nodes) & Chưa có free cloud credits (GitHub Student Pack / Azure for Students chưa được duyệt) & Đang đăng ký lại GitHub Student Developer Pack $\rightarrow$ DigitalOcean. Backup: Google Colab / Kaggle \\
+\midrule
+Config system dev/cluster env switching & Phụ thuộc VPS cluster ở trên -- không có cluster thì không test được config switching & Sẽ hoàn thành ngay khi có VPS. Hiện tại dùng \texttt{LSH\_ENV=dev} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Hiện tại toàn bộ phát triển và testing đều chạy trên \textbf{Docker local mode} (PySpark single-node). Các kết quả thuật toán đã verify đúng trên sample data, nhưng chưa đo được performance metrics thực sự (scalability, speedup) do thiếu cluster.
+
+\subsection{Công việc tiếp theo}
+
+\begin{enumerate}
+    \item \textbf{Hoàn tất API \& Frontend:} FastAPI server + Streamlit 4 pages + integration test end-to-end.
+    \item \textbf{Chạy 4 thí nghiệm:}
+    \begin{itemize}
+        \item TN1: Thay đổi tham số $b, r$ -- đo Recall, Precision, F1, FPR, vẽ S-curve.
+        \item TN2: Thay đổi số hàm hash $n$ (50, 100, 150, 200) -- đo Recall vs Execution Time.
+        \item TN3: Scalability test (1K $\rightarrow$ 3K $\rightarrow$ 5K $\rightarrow$ 10K sách) -- đo Execution Time, Speedup.
+        \item TN4: LSH vs Brute-force -- so sánh toàn diện tất cả metrics.
+    \end{itemize}
+    \item \textbf{Dashboard metrics:} Streamlit page hiển thị bucket distribution, precision/recall charts, scalability graphs.
+    \item \textbf{Báo cáo \& Demo:} Viết report kết quả thí nghiệm, cập nhật slide, code cleanup, chuẩn bị demo live.
+\end{enumerate}

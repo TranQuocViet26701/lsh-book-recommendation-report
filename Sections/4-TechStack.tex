@@ -1,0 +1,23 @@
+\newpage
+\section{Các thành phần công nghệ (Tech Stack)}
+
+\begin{table}[h!]
+\centering
+\caption{Các thành phần công nghệ sử dụng trong hệ thống}
+\label{tab:techstack}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Thành phần} & \textbf{Công nghệ} & \textbf{Vai trò} \\
+\hline
+Storage & HDFS & Lưu trữ phân tán dữ liệu sách thô, kết quả trung gian và LSH index \\
+\hline
+Data Format & Apache Parquet & Định dạng columnar cho MinHash signatures, LSH buckets và kết quả query --- tối ưu cho đọc/lọc trên Spark \\
+\hline
+Processing & Apache Spark (PySpark) & Xử lý phân tán: tiền xử lý, tính MinHash, LSH indexing, query \\
+\hline
+Orchestration & YARN & Quản lý tài nguyên cluster cho Spark jobs \\
+\hline
+User Interface & Streamlit hoặc Flask \textit{(nice-to-have)} & Giao diện web đơn giản để người dùng chọn sách và xem kết quả gợi ý \\
+\hline
+\end{tabularx}
+\end{table}

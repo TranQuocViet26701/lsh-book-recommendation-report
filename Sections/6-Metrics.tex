@@ -1,0 +1,88 @@
+\newpage
+\section{Metrics đánh giá hệ thống}
+
+\subsection{Nhóm Metric về Chất lượng}
+
+So sánh kết quả LSH với ground truth (brute-force Jaccard pairwise):
+
+\begin{table}[h!]
+\centering
+\caption{Các metric đánh giá chất lượng}
+\label{tab:quality-metrics}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Metric} & \textbf{Công thức} & \textbf{Ý nghĩa} \\
+\hline
+Recall (Độ phủ) & $\frac{TP}{TP + FN}$ & Tỷ lệ các cặp thực sự tương tự mà LSH tìm được. Đo khả năng ``không bỏ sót''. \\
+\hline
+Precision (Độ chính xác) & $\frac{TP}{TP + FP}$ & Tỷ lệ các cặp LSH trả về mà thực sự tương tự. Đo khả năng ``không trả sai''. \\
+\hline
+F1-Score & $\frac{2 \times P \times R}{P + R}$ & Trung bình điều hòa của Precision và Recall. Đánh giá cân bằng tổng thể. \\
+\hline
+\end{tabularx}
+\end{table}
+
+Trong đó: TP = True Positive (cặp tương tự, LSH tìm đúng), FP = False Positive (cặp không tương tự, LSH báo tương tự), FN = False Negative (cặp tương tự, LSH bỏ sót).
+
+\subsection{Nhóm Metric về Hiệu năng}
+
+\begin{table}[h!]
+\centering
+\caption{Các metric đánh giá hiệu năng}
+\label{tab:performance-metrics}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Metric} & \textbf{Công thức / Cách đo} & \textbf{Ý nghĩa} \\
+\hline
+Execution Time & Tổng thời gian chạy pipeline & Thời gian hoàn thành toàn bộ job \\
+\hline
+Speedup Ratio & $\frac{T_{bruteforce}}{T_{LSH}}$ & Mức tăng tốc so với brute-force pairwise comparison \\
+\hline
+Query Latency & Thời gian trung bình xử lý 1 truy vấn & Đo trải nghiệm người dùng khi truy vấn real-time \\
+\hline
+Scalability & Đo execution time khi tăng dần số sách (1K $\rightarrow$ 3K $\rightarrow$ 5K $\rightarrow$ 10K) & Đánh giá khả năng mở rộng --- lý tưởng là tuyến tính hoặc sub-linear \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Nhóm Metric đặc thù của LSH \& MRS Join}
+
+\begin{table}[h!]
+\centering
+\caption{Các metric đặc thù của LSH}
+\label{tab:lsh-metrics}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Metric} & \textbf{Công thức / Cách đo} & \textbf{Ý nghĩa} \\
+\hline
+False Positive Rate & $\frac{FP}{FP + TN}$ & Tỷ lệ cặp không tương tự bị LSH đánh nhầm thành candidate. Phản ánh ``nhiễu'' của hệ thống. \\
+\hline
+Selectivity & $\frac{|\text{Candidate pairs}|}{|\text{All possible pairs}|}$ & Tỷ lệ cặp candidate so với tổng số cặp. Selectivity thấp = LSH lọc tốt. \\
+\hline
+Bucket Imbalance & $\frac{\text{Std}(\text{bucket\_sizes})}{\text{Mean}(\text{bucket\_sizes})}$ & Đo độ đều của phân bố tài liệu vào các bucket. Imbalance cao $\rightarrow$ giảm hiệu năng query. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Thí nghiệm đánh giá dự kiến}
+
+\begin{table}[h!]
+\centering
+\caption{Danh sách các thí nghiệm dự kiến}
+\label{tab:experiments}
+\begin{tabularx}{\textwidth}{|l|X|X|}
+\hline
+\textbf{Thí nghiệm} & \textbf{Biến thay đổi} & \textbf{Metric theo dõi} \\
+\hline
+TN1: Ảnh hưởng tham số $b$, $r$ & Thay đổi số band ($b$) và row/band ($r$) & Recall, Precision, F1, FPR \\
+\hline
+TN2: Ảnh hưởng số hàm hash ($n$) & $n = 50, 100, 150, 200$ & Recall, Execution Time \\
+\hline
+TN3: Scalability test & Số lượng sách: 1K, 3K, 5K, 10K & Execution Time, Speedup Ratio \\
+\hline
+TN4: LSH vs Brute-force & So sánh trực tiếp & Tất cả metrics \\
+\hline
+TN5: Phân tích bucket distribution & Cố định tham số, phân tích phân bố & Bucket Imbalance, Selectivity \\
+\hline
+\end{tabularx}
+\end{table}

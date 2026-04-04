@@ -1,0 +1,67 @@
+## Core LaTeX auxiliary files
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+
+## Bibliography
+*.bbl
+*.bcf
+*.blg
+*-blx.aux
+*-blx.bib
+*.run.xml
+
+## Build tool
+*.fdb_latexmk
+*.synctex
+*.synctex(busy)
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+
+## Indices
+*.idx
+*.ilg
+*.ind
+*.ist
+
+## Glossary / Acronyms
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+*.glsdefs
+
+## Nomenclature
+*.nlo
+*.nls
+
+## Listings
+*.lol
+
+## Tikz externalization
+*.dpth
+*.md5
+*.auxlock
+
+## PDF output (team compiles locally, CI builds the official one)
+*.pdf
+
+## OS files
+.DS_Store
+Thumbs.db
+
+## Editor
+.vscode/*
+!.vscode/settings.json

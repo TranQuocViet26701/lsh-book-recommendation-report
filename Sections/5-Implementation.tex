@@ -1,0 +1,213 @@
+\newpage
+\section{Triển khai chi tiết}
+
+\subsection{Source Code Repository}
+ 
+Toàn bộ mã nguồn được quản lý trên GitHub:
+ 
+\begin{center}
+\url{https://github.com/TranQuocViet26701/lsh-book-recommendation}
+\end{center}
+
+\subsection{Bộ dữ liệu --- Project Gutenberg}
+
+\textbf{Nguồn:} Project Gutenberg (\url{https://www.gutenberg.org/}) --- thư viện sách miễn phí với hơn 70,000 đầu sách.
+
+\begin{table}[h!]
+\centering
+\caption{Thông tin bộ dữ liệu Project Gutenberg}
+\label{tab:dataset}
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Thuộc tính} & \textbf{Chi tiết} \\
+\hline
+Quy mô dự kiến & 3,000 -- 10,000 đầu sách (subset có thể điều chỉnh để đánh giá scalability) \\
+\hline
+Định dạng & Plain text (\texttt{.txt}), mã hóa UTF-8 \\
+\hline
+Ngôn ngữ & Tiếng Anh (có thể mở rộng đa ngữ) \\
+\hline
+Kích thước trung bình & $\sim$300 KB -- 1 MB / sách \\
+\hline
+Tổng dung lượng ước tính & $\sim$5 -- 10 GB (cho 10,000 sách) \\
+\hline
+Metadata đi kèm & Tên sách, tác giả, thể loại, năm xuất bản (từ Gutenberg catalog) \\
+\hline
+\end{tabularx}
+\end{table}
+
+\textbf{Phương pháp thu thập:} Sử dụng Gutenberg mirror hoặc thư viện Python \texttt{gutenberg} / \texttt{gutenbergpy} để tải batch dữ liệu, sau đó upload lên HDFS.
+
+\subsection{Tiền xử lý dữ liệu (Preprocessing Pipeline)}
+
+Toàn bộ quá trình tiền xử lý được thực hiện song song trên Spark:
+
+\begin{table}[h!]
+\centering
+\caption{Các bước tiền xử lý dữ liệu}
+\label{tab:preprocessing}
+\begin{tabularx}{\textwidth}{|c|l|X|}
+\hline
+\textbf{Bước} & \textbf{Phương pháp} & \textbf{Mục đích} \\
+\hline
+1 & Loại bỏ header/footer (Regex) & Xóa phần ``Project Gutenberg'' boilerplate ở đầu và cuối sách, giữ lại nội dung thuần túy \\
+\hline
+2 & Chuyển chữ thường (\texttt{lower()}) & Chuẩn hóa case \\
+\hline
+3 & Loại bỏ ký tự đặc biệt (Regex) & Giữ lại chữ cái, số, khoảng trắng; giảm nhiễu \\
+\hline
+4 & Tokenization & Tách từ (word-level hoặc character-level tùy chiến lược shingling) \\
+\hline
+5 & Loại bỏ stopwords & Sử dụng danh sách stopwords tiếng Anh (NLTK hoặc custom); giảm chiều, tăng chất lượng so sánh \\
+\hline
+6 & Stemming / Lemmatization \textit{(tùy chọn)} & Porter Stemmer hoặc WordNet Lemmatizer; chuẩn hóa biến thể từ \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Cấu trúc lưu trữ trên HDFS}
+
+Dữ liệu được tổ chức theo cấu trúc thư mục rõ ràng trên HDFS, tách biệt giữa dữ liệu thô, dữ liệu đã xử lý, và các sản phẩm trung gian:
+
+\begin{lstlisting}[style=CStyle, language=bash, caption={Cấu trúc thư mục trên HDFS}, label={lst:hdfs-structure}]
+/project-lsh/
+|-- raw/                        # Du lieu sach goc
+|   |-- book_00001.txt
+|   |-- book_00002.txt
+|   +-- ...
+|-- cleaned/                    # Du lieu sau tien xu ly
+|   |-- book_00001_cleaned.txt
+|   +-- ...
+|-- signatures/                 # MinHash signatures (Parquet)
+|   +-- minhash_signatures.parquet
+|-- lsh_index/                  # LSH bucket assignments
+|   +-- lsh_buckets.parquet
+|-- metadata/                   # Metadata sach (Parquet)
+|   +-- books_metadata.parquet
++-- results/                    # Ket qua query
+    +-- similarity_results.parquet
+\end{lstlisting}
+
+\subsection{Thuật toán LSH --- Chi tiết kỹ thuật}
+
+\subsubsection{Shingling (k-gram)}
+
+Mỗi tài liệu được biểu diễn thành một \textbf{tập hợp các k-shingle} (chuỗi con liên tiếp gồm $k$ ký tự hoặc $k$ từ):
+
+\begin{itemize}
+    \item \textbf{Character-level shingle} ($k = 5$--$10$): Phù hợp cho phát hiện sao chép, ít nhạy cảm với lỗi chính tả.
+    \item \textbf{Word-level shingle} ($k = 2$--$5$): Phù hợp cho so sánh ngữ nghĩa ở mức cụm từ.
+    \item \textbf{Lựa chọn mặc định:} Word-level shingle với $k = 3$ (trigram) --- cân bằng giữa granularity và hiệu quả.
+\end{itemize}
+
+\subsubsection{MinHash Signatures}
+
+MinHash là kỹ thuật ước lượng Jaccard Similarity giữa hai tập hợp mà không cần so sánh trực tiếp:
+
+\begin{itemize}
+    \item Sử dụng $n$ hàm hash ($n = 100$--$200$) để tạo MinHash signature cho mỗi tài liệu.
+    \item Mỗi signature là một vector gồm $n$ giá trị nguyên.
+    \item \textbf{Tính chất:} Xác suất hai signature trùng tại một vị trí bằng đúng Jaccard Similarity của hai tập shingle gốc:
+\end{itemize}
+
+\begin{equation}
+    P(h(A) = h(B)) = J(A, B) = \frac{|A \cap B|}{|A \cup B|}
+\end{equation}
+
+\subsubsection{LSH Banding Technique}
+
+Chia mỗi MinHash signature (gồm $n$ giá trị) thành $b$ band, mỗi band gồm $r$ row ($n = b \times r$):
+
+\begin{itemize}
+    \item Hai tài liệu trở thành \textbf{candidate pair} nếu chúng hash vào cùng bucket ở \textbf{ít nhất 1 band}.
+    \item \textbf{S-curve threshold:} Ngưỡng tương đồng xấp xỉ:
+\end{itemize}
+
+\begin{equation}
+    t \approx \left(\frac{1}{b}\right)^{1/r}
+\end{equation}
+
+\textbf{Ví dụ:} Với $n = 100$, $b = 20$, $r = 5$ $\rightarrow$ threshold $\approx 0.55$ (các cặp có Jaccard $\geq 0.55$ sẽ có xác suất cao trở thành candidate).
+
+\begin{figure}[h!]
+\centering
+\begin{tikzpicture}[scale=0.85]
+    \draw[->] (0,0) -- (8,0) node[right] {\small Jaccard Similarity $s$};
+    \draw[->] (0,0) -- (0,5.5) node[above] {\small $P(\text{candidate})$};
+    
+    % S-curve
+    \draw[blue, thick, domain=0:7.5, samples=100] plot (\x, {5*(1-(1-(\x/7.5)^5)^20)});
+    
+    % Threshold line
+    \draw[red, dashed] (4.1,0) -- (4.1,5) node[above, font=\small] {$t \approx 0.55$};
+    
+    % Step function (ideal)
+    \draw[gray, dashed, thick] (0,0) -- (4.1,0) -- (4.1,5) -- (7.5,5);
+    
+    % Labels
+    \node[font=\scriptsize] at (2, 4.5) {S-curve (LSH)};
+    \node[font=\scriptsize, gray] at (6, 1) {Ideal};
+    
+    % Ticks
+    \foreach \x/\label in {0/0, 1.875/0.25, 3.75/0.5, 5.625/0.75, 7.5/1.0}
+        \draw (\x, -0.1) -- (\x, 0.1) node[below=2pt, font=\scriptsize] {\label};
+    \foreach \y/\label in {0/0, 2.5/0.5, 5/1.0}
+        \draw (-0.1, \y) -- (0.1, \y) node[left=2pt, font=\scriptsize] {\label};
+\end{tikzpicture}
+\caption{S-curve của LSH: xác suất trở thành candidate pair theo Jaccard Similarity ($b=20$, $r=5$)}
+\label{fig:scurve}
+\end{figure}
+
+\subsubsection{Hàm đo tương đồng}
+
+\begin{table}[h!]
+\centering
+\caption{So sánh các hàm đo tương đồng}
+\label{tab:similarity-measures}
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Hàm đo} & \textbf{Công thức} & \textbf{Phù hợp cho} \\
+\hline
+Jaccard Similarity \textit{(chính)} & $J(A,B) = \frac{|A \cap B|}{|A \cup B|}$ & So sánh tập hợp shingle --- mặc định cho LSH MinHash \\
+\hline
+Cosine Similarity \textit{(tham khảo)} & $\cos(A,B) = \frac{A \cdot B}{\|A\| \cdot \|B\|}$ & So sánh vector TF-IDF (cần LSH variant: SimHash) \\
+\hline
+Hamming Distance \textit{(tham khảo)} & Số vị trí bit khác nhau & So sánh binary fingerprint \\
+\hline
+\end{tabularx}
+\end{table}
+
+Đề tài sử dụng \textbf{Jaccard Similarity} làm hàm đo chính vì nó tự nhiên phù hợp với biểu diễn shingle-set và được hỗ trợ trực tiếp bởi MinHash.
+
+\subsection{Đánh giá LSH trong bài toán Similarity Join (MRS Join)}
+
+\subsubsection{LSH phù hợp với Similarity Join ở mức độ nào?}
+
+\begin{table}[h!]
+\centering
+\caption{Đánh giá mức độ phù hợp của LSH cho Similarity Join}
+\label{tab:lsh-evaluation}
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Tiêu chí} & \textbf{Đánh giá} \\
+\hline
+Tốc độ & LSH giảm số cặp cần so sánh từ $O(n^2)$ xuống $O(n \cdot k)$ với $k \ll n$, rất hiệu quả cho tập dữ liệu lớn \\
+\hline
+Chất lượng & LSH là phương pháp xấp xỉ --- có thể bỏ sót một số cặp tương tự (false negatives) hoặc trả về cặp không thực sự tương tự (false positives). Chất lượng phụ thuộc vào việc chọn tham số $b$, $r$ \\
+\hline
+Khả năng phân tán & Rất phù hợp với MapReduce/Spark: mỗi band có thể xử lý song song, bucketing tương tự reduce-by-key \\
+\hline
+Trade-off & Tăng $b$ (nhiều band) $\rightarrow$ tăng recall nhưng tăng false positives. Tăng $r$ (nhiều row/band) $\rightarrow$ tăng precision nhưng giảm recall \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsubsection{Ứng dụng thực tế của LSH Similarity Join}
+
+\begin{itemize}
+    \item \textbf{Near-duplicate detection:} Phát hiện bài viết/tài liệu sao chép trong kho dữ liệu lớn (ứng dụng trong anti-plagiarism, web deduplication).
+    \item \textbf{Recommendation systems:} Gợi ý sản phẩm/nội dung tương tự dựa trên đặc trưng nội dung (bài toán của đề tài này).
+    \item \textbf{Entity resolution:} Ghép nối các bản ghi trùng lặp trong cơ sở dữ liệu lớn (ví dụ: ghép tên khách hàng, địa chỉ).
+    \item \textbf{Genome/protein similarity:} So sánh chuỗi DNA/protein trong tin sinh học.
+    \item \textbf{Image retrieval:} Tìm ảnh tương tự trong kho ảnh lớn (kết hợp LSH với feature vector từ CNN).
+\end{itemize}

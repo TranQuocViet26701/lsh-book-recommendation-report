@@ -1,0 +1,29 @@
+\newpage
+\section{Giới thiệu đề tài}
+
+\subsection{Bối cảnh và động lực}
+
+Trong kỷ nguyên số hóa, lượng dữ liệu văn bản tăng trưởng nhanh chóng --- từ thư viện số, kho tài liệu học thuật đến các nền tảng sách điện tử. Một bài toán quan trọng và phổ biến là \textbf{tìm kiếm các tài liệu có nội dung tương tự} (Similarity Search). Ví dụ, khi người dùng đọc xong một cuốn sách, hệ thống cần gợi ý những cuốn sách có nội dung gần giống để nâng cao trải nghiệm khám phá.
+
+Tuy nhiên, phương pháp so sánh brute-force (so sánh từng cặp tài liệu) có độ phức tạp $O(n^2)$, trở nên bất khả thi khi tập dữ liệu lên đến hàng chục nghìn đến hàng triệu tài liệu. \textbf{Locality-Sensitive Hashing (LSH)} là một kỹ thuật xấp xỉ (approximate) cho phép giải quyết bài toán Similarity Join với chi phí tính toán thấp hơn đáng kể, đặc biệt phù hợp với môi trường Big Data phân tán.
+
+\subsection{Mục tiêu đề tài}
+
+Đề tài này xây dựng một \textbf{hệ thống gợi ý sách tương tự} (Similar Book Recommendation) dựa trên nội dung văn bản, áp dụng thuật toán LSH kết hợp Similarity Join (Map-Reduce-based Similarity Join --- MRS Join) trên nền tảng Apache Spark và HDFS. Cụ thể, đề tài hướng đến các mục tiêu:
+
+\begin{itemize}
+    \item \textbf{Mục tiêu 1 --- Xây dựng pipeline end-to-end:} Từ dữ liệu thô (raw text) đến kết quả gợi ý sách tương tự, bao gồm tiền xử lý, vector hóa, LSH indexing, và truy vấn.
+    \item \textbf{Mục tiêu 2 --- Triển khai LSH trên nền tảng phân tán:} Sử dụng Apache Spark để xử lý dữ liệu quy mô lớn, lưu trữ trên HDFS, đảm bảo khả năng mở rộng (scalability).
+    \item \textbf{Mục tiêu 3 --- Đánh giá toàn diện:} So sánh hiệu quả của LSH với brute-force về cả chất lượng (Precision, Recall, F1) và hiệu năng (Speedup, Latency, Scalability), đồng thời phân tích các metric đặc thù của LSH.
+    \item \textbf{Mục tiêu 4 --- Phân tích ứng dụng thực tế:} Đánh giá mức độ phù hợp của LSH trong bài toán Similarity Join và các kịch bản ứng dụng ngoài thực tế.
+\end{itemize}
+
+\subsection{Phạm vi đề tài}
+
+\begin{itemize}
+    \item \textbf{Dữ liệu:} Sử dụng bộ dữ liệu sách miễn phí từ Project Gutenberg.
+    \item \textbf{Hàm đo tương đồng chính:} Jaccard Similarity (dựa trên tập hợp các shingle).
+    \item \textbf{Phương pháp:} Shingling $\rightarrow$ MinHash $\rightarrow$ LSH Banding.
+    \item \textbf{Nền tảng:} Apache Spark (PySpark), HDFS.
+    \item \textbf{Ngoài phạm vi:} Hệ thống không xử lý gợi ý dựa trên hành vi người dùng (collaborative filtering); chỉ tập trung vào content-based similarity.
+\end{itemize}
