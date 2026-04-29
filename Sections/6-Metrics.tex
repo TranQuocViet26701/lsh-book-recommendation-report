@@ -26,32 +26,36 @@ Trong đó: TP = True Positive (cặp tương tự, LSH tìm đúng), FP = False
 
 \subsection{Nhóm Metric về Hiệu năng}
 
-\begin{table}[h!]
+\begin{table}[H]
 \centering
 \caption{Các metric đánh giá hiệu năng}
 \label{tab:performance-metrics}
-\begin{tabularx}{\textwidth}{|l|l|X|}
+\begin{tabularx}{\textwidth}{|l|X|X|}
 \hline
 \textbf{Metric} & \textbf{Công thức / Cách đo} & \textbf{Ý nghĩa} \\
 \hline
-Execution Time & Tổng thời gian chạy pipeline & Thời gian hoàn thành toàn bộ job \\
+Execution Time (end-to-end) & Tổng thời gian chạy pipeline & Thời gian hoàn thành toàn bộ job, bao gồm cả Spark/JVM startup. \\
 \hline
-Speedup Ratio & $\frac{T_{bruteforce}}{T_{LSH}}$ & Mức tăng tốc so với brute-force pairwise comparison \\
+Setup Overhead & Thời gian khởi tạo SparkSession + load Parquet + driver-side collect & Cần tách riêng vì ở dataset nhỏ overhead này chi phối, làm metric end-to-end mất ý nghĩa. \\
 \hline
-Query Latency & Thời gian trung bình xử lý 1 truy vấn & Đo trải nghiệm người dùng khi truy vấn real-time \\
+Algorithmic Time & $T_{\text{MinHash}} + T_{\text{LSH index}} + T_{\text{candidate pairs}}$ (không tính setup) & Thời gian thực sự của thuật toán, là cơ sở so sánh fair với brute-force. \\
 \hline
-Scalability & Đo execution time khi tăng dần số sách (1K $\rightarrow$ 3K $\rightarrow$ 5K $\rightarrow$ 10K) & Đánh giá khả năng mở rộng --- lý tưởng là tuyến tính hoặc sub-linear \\
+Speedup Ratio & $\frac{T_{bruteforce}}{T_{LSH}}$ (đo trên Algorithmic Time) & Mức tăng tốc so với brute-force pairwise comparison. \\
+\hline
+Query Latency & Thời gian trung bình xử lý 1 truy vấn Top-K & Đo trải nghiệm người dùng khi truy vấn real-time. \\
+\hline
+Scalability & Đo execution time khi tăng dần số sách (1K $\rightarrow$ 3K $\rightarrow$ 5K $\rightarrow$ 10K) & Đánh giá khả năng mở rộng --- lý tưởng là tuyến tính hoặc sub-linear. \\
 \hline
 \end{tabularx}
 \end{table}
 
 \subsection{Nhóm Metric đặc thù của LSH \& MRS Join}
 
-\begin{table}[h!]
+\begin{table}[H]
 \centering
 \caption{Các metric đặc thù của LSH}
 \label{tab:lsh-metrics}
-\begin{tabularx}{\textwidth}{|l|l|X|}
+\begin{tabularx}{\textwidth}{|l|X|X|}
 \hline
 \textbf{Metric} & \textbf{Công thức / Cách đo} & \textbf{Ý nghĩa} \\
 \hline
@@ -64,25 +68,206 @@ Bucket Imbalance & $\frac{\text{Std}(\text{bucket\_sizes})}{\text{Mean}(\text{bu
 \end{tabularx}
 \end{table}
 
-\subsection{Thí nghiệm đánh giá dự kiến}
+\subsection{Nhóm Metric về Tính đại diện của Dataset}
 
-\begin{table}[h!]
+Khi chạy thí nghiệm trên dataset 90 sách, tất cả các metric chất lượng đều bão hòa ở 1.0 (Recall = Precision = F1 = 1.0) bất kể cấu hình $(b, r)$ hay số hàm hash $n$. Điều này không có nghĩa thuật toán hoàn hảo --- nó cho thấy dataset \emph{không đủ phân biệt} để các metric chất lượng có ý nghĩa. Nhóm metric dưới đây được bổ sung để chẩn đoán chất lượng dataset trước khi diễn giải kết quả LSH:
+
+\begin{table}[H]
 \centering
-\caption{Danh sách các thí nghiệm dự kiến}
-\label{tab:experiments}
+\caption{Các metric đánh giá tính đại diện của dataset}
+\label{tab:dataset-metrics}
 \begin{tabularx}{\textwidth}{|l|X|X|}
 \hline
-\textbf{Thí nghiệm} & \textbf{Biến thay đổi} & \textbf{Metric theo dõi} \\
+\textbf{Metric} & \textbf{Công thức / Cách đo} & \textbf{Ý nghĩa} \\
 \hline
-TN1: Ảnh hưởng tham số $b$, $r$ & Thay đổi số band ($b$) và row/band ($r$) & Recall, Precision, F1, FPR \\
+GT Positive Density & $\frac{|\text{GT pairs}|}{|\text{All pairs}|}$ & Mật độ cặp tương tự thật. Quá thấp ($< 1\%$) $\rightarrow$ quality metrics dễ bão hòa, không phân biệt được giữa các config. \\
 \hline
-TN2: Ảnh hưởng số hàm hash ($n$) & $n = 50, 100, 150, 200$ & Recall, Execution Time \\
+Similarity Distribution & Histogram của true Jaccard trên toàn bộ cặp & Cho thấy dataset có ``gradient'' similarity hay chỉ tập trung ở 0 và 1 (bimodal). \\
 \hline
-TN3: Scalability test & Số lượng sách: 1K, 3K, 5K, 10K & Execution Time, Speedup Ratio \\
+Threshold Sensitivity & Recall/Precision khi sweep threshold $\in [0.1, 0.9]$ & Nếu metrics phẳng theo threshold $\rightarrow$ dataset không có cặp ở vùng similarity trung bình. \\
 \hline
-TN4: LSH vs Brute-force & So sánh trực tiếp & Tất cả metrics \\
-\hline
-TN5: Phân tích bucket distribution & Cố định tham số, phân tích phân bố & Bucket Imbalance, Selectivity \\
+Effective N & Số sách thực sự khác biệt sau dedup (loại bỏ duplicates / synthetic copies) & Phân biệt scale ``thật'' với scale ``nhân bản'' --- quan trọng cho TN3 scalability. \\
 \hline
 \end{tabularx}
 \end{table}
+
+\subsection{Môi trường thực thi và quy mô dữ liệu}
+\label{subsec:env-pivot}
+
+Kế hoạch ban đầu (xem Section~\ref{sec:techstack} và \ref{sec:implementation}) là cluster Hadoop 3 nút --- HDFS cho dữ liệu thô, Spark on YARN cho tính toán, dataset $3{,}000$--$10{,}000$ sách. Tuy nhiên, do không xin được cloud credits đúng hạn (chi tiết ở Section~\ref{sec:plan}), nhóm phải chuyển hướng sang \textbf{Databricks Free Edition (Serverless)} cho toàn bộ TN1--TN4.
+
+Pivot này có hệ quả trực tiếp đến cách diễn giải các metric ở Bảng~\ref{tab:performance-metrics}:
+\begin{itemize}
+    \item \textbf{Driver memory hẹp:} TN3 phải cắt từ kế hoạch $\{1\text{K}, 3\text{K}, 5\text{K}, 10\text{K}\}$ sách xuống còn $\{200, 500, 1000\}$ sách synthetic. TN1, TN2, TN4 cố định ở $90$ sách thật từ Project Gutenberg.
+    \item \textbf{Mất quyền truy cập cấp JVM:} \texttt{spark.sparkContext} bị chặn (\texttt{JVM\_ATTRIBUTE\_NOT\_SUPPORTED}); \texttt{PERSIST TABLE} bị từ chối (\texttt{SQLSTATE 0A000}). Code phải dùng shim \texttt{\_maybe\_cache(df)} để chạy được cả local Spark lẫn Serverless --- không thể tinh chỉnh \texttt{spark.sql.shuffle.partitions} hay set log level từ notebook.
+    \item \textbf{Compute dùng chung:} thời gian end-to-end của TN1/TN2 ($\sim 1260$s mỗi config) bị chi phối bởi Spark/JVM warm-up + shuffle, không phải LSH math. Đây là lý do speedup TN3 và TN4 đều $< 1$ (overhead-dominated regime, đúng dự đoán lý thuyết).
+\end{itemize}
+
+Hướng phục hồi infrastructure được trình bày ở Section~\ref{sec:plan}.
+
+\subsection{Thí nghiệm: dự kiến vs đã chạy}
+
+Bốn thí nghiệm TN1--TN4 đã được chạy trên Databricks Free Edition Serverless. Kết quả chi tiết ở mục~\ref{subsec:tn-results}; phân tích hạn chế ở mục~\ref{subsec:dataset-limits}.
+
+\begin{table}[h!]
+\centering
+\caption{Trạng thái và kết quả tóm tắt các thí nghiệm}
+\label{tab:experiments}
+\begin{tabularx}{\textwidth}{|l|X|l|X|}
+\hline
+\textbf{Thí nghiệm} & \textbf{Biến / Metric} & \textbf{Trạng thái} & \textbf{Kết quả tóm tắt} \\
+\hline
+TN1: Tham số $b, r$ & $b, r \in \{(10,10), (20,5), (25,4), (50,2)\}$, $n{=}100$; đo Recall, Precision, F1, FPR & Đã chạy & Tất cả config: F1 $=$ 1.0; thời gian $\approx 1260$s gần như không đổi (Spark overhead chi phối). \\
+\hline
+TN2: Số hàm hash $n$ & $n \in \{50, 100, 150, 200\}$, $r{=}5$; đo Recall, Execution Time & Đã chạy & F1 $=$ 1.0 cho mọi $n$; thời gian tăng tuyến tính ($\approx 12.3$s/hash unit, từ $641$s ở $n{=}50$ tới $2491$s ở $n{=}200$). \\
+\hline
+TN3: Scalability & Synthetic duplication: 200, 500, 1000 sách; đo Time, Speedup & Đã chạy (giảm scale) & Speedup vs brute-force: \textbf{0.006--0.018$\times$} (LSH chậm hơn). Synthetic copies có $J{=}1.0$ $\rightarrow$ không phản ánh phân bố thật. \\
+\hline
+TN4: LSH vs Brute-force & So sánh trực tiếp trên 90 sách, $n{=}100$, $b{=}20$, $r{=}5$ & Đã chạy & LSH 1257.7s vs BF 13.3s $\rightarrow$ speedup $0.011\times$; cả hai đều tìm đủ 4 cặp GT (F1 $=$ 1.0). Selectivity LSH $0.001$ vs BF $1.000$ (4 vs 4005 candidates) --- LSH lọc cực mạnh nhưng overhead Spark/JVM chi phối thời gian. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Kết quả chi tiết 4 thí nghiệm}
+\label{subsec:tn-results}
+
+Các bảng và biểu đồ dưới đây được trích trực tiếp từ notebook \texttt{04\_experiments.ipynb} chạy trên Databricks Free Edition Serverless. Setup chung: $90$ sách, $4{,}005$ cặp khả dĩ, $4$ cặp ground-truth $J \geq 0.5$, brute-force GT compute $= 15.73$s.
+
+\subsubsection{TN1 --- Tham số $(b, r)$, $n = 100$ cố định}
+
+Mục tiêu: khảo sát đường cong S của LSH banding ở 4 cấu hình $(b, r)$ với threshold lý thuyết $t^{*} = (1/b)^{1/r}$ trải từ $0.14$ đến $0.79$.
+
+\begin{table}[H]
+\centering
+\caption{TN1 --- Kết quả 4 cấu hình $(b, r)$ với $n=100$ (signatures compute: $4.20$s)}
+\label{tab:tn1-results}
+\begin{tabular}{lccccccccc}
+\toprule
+\textbf{Config} & \textbf{$b$} & \textbf{$r$} & \textbf{$t^{*}$} & \textbf{$|$cand$|$} & \textbf{Recall} & \textbf{Prec} & \textbf{F1} & \textbf{FPR} & \textbf{Time (s)} \\
+\midrule
+$b{=}10, r{=}10$ & 10 & 10 & 0.7943 & 4 & 1.0 & 1.0 & 1.0 & 0.0 & 1258.504 \\
+$b{=}20, r{=}5$  & 20 & 5  & 0.5493 & 4 & 1.0 & 1.0 & 1.0 & 0.0 & 1260.754 \\
+$b{=}25, r{=}4$  & 25 & 4  & 0.4472 & 4 & 1.0 & 1.0 & 1.0 & 0.0 & 1263.613 \\
+$b{=}50, r{=}2$  & 50 & 2  & 0.1414 & 4 & 1.0 & 1.0 & 1.0 & 0.0 & 1259.748 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{Images/experiments/tn1_scurve_recallfpr.png}
+\caption{TN1 --- Trái: đường cong S $P(\text{collision})$ theo Jaccard $s$ cho 4 cấu hình $(b, r)$, đường nét đứt là GT threshold $0.5$. Phải: Recall vs FPR --- cả 4 cấu hình đều rơi vào $(0, 1)$, không phân biệt được do dataset bão hòa.}
+\label{fig:tn1}
+\end{figure}
+
+\textbf{Diễn giải.} Cả 4 cấu hình đều phục hồi đủ $4/4$ cặp GT với $\text{FPR} = 0$. Thời gian chênh nhau $< 0.5\%$ giữa các cấu hình, xác nhận rằng overhead Spark/JVM (chứ không phải LSH math) chi phối ở scale này. Cấu hình $b{=}20, r{=}5$ có $t^{*} \approx 0.55$ gần nhất với GT threshold $0.5$ và là lựa chọn cân bằng nhất về lý thuyết.
+
+\subsubsection{TN2 --- Số hàm hash $n$, $r=5$ cố định}
+
+Mục tiêu: đo ảnh hưởng của số hàm hash đến thời gian và chất lượng. Giữ $r=5$, đặt $b = n/5$ để $t^{*}$ ổn định ở $\sim 0.55$.
+
+\begin{table}[H]
+\centering
+\caption{TN2 --- Sweep $n \in \{50, 100, 150, 200\}$, $r{=}5$}
+\label{tab:tn2-results}
+\begin{tabular}{cccccccccc}
+\toprule
+\textbf{$n$} & \textbf{$b$} & \textbf{$r$} & \textbf{$|$cand$|$} & \textbf{Recall} & \textbf{Prec} & \textbf{F1} & \textbf{FPR} & \textbf{Time (s)} \\
+\midrule
+50  & 10 & 5 & 4 & 1.0 & 1.0 & 1.0 & 0.0 & 641.383  \\
+100 & 20 & 5 & 4 & 1.0 & 1.0 & 1.0 & 0.0 & 1254.736 \\
+150 & 30 & 5 & 4 & 1.0 & 1.0 & 1.0 & 0.0 & 1870.203 \\
+200 & 40 & 5 & 4 & 1.0 & 1.0 & 1.0 & 0.0 & 2491.090 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{Images/experiments/tn2_quality_time_vs_n.png}
+\caption{TN2 --- Trái: Recall/Precision/F1 phẳng tại $1.0$ cho mọi $n$ (dataset bão hòa). Phải: thời gian thực thi tăng tuyến tính theo $n$ với hệ số $\sim 12.3$s/hash unit.}
+\label{fig:tn2}
+\end{figure}
+
+\textbf{Diễn giải.} Quality metrics không phân biệt được giữa các $n$ (đều $1.0$). Thời gian khớp gần như hoàn hảo với fit tuyến tính: $T(n) \approx 12.3 \cdot n + 28$ s. Vì F1 đã bão hòa từ $n = 50$, không có lý do thực nghiệm để chọn $n$ lớn hơn $100$ trên dataset này; lựa chọn $n = 100$ trong các thí nghiệm còn lại là hợp lý.
+
+\subsubsection{TN3 --- Scalability test (synthetic duplication)}
+
+Mục tiêu: đo cách thời gian pipeline tăng theo kích thước dataset. Sinh dataset synthetic bằng cách nhân bản DataFrame shingles. Brute-force timing dùng $5$ query books vs all (không phải all-pairs --- bởi all-pairs ở $1{,}000$ sách đã không khả thi với driver memory của Free Edition).
+
+\begin{table}[H]
+\centering
+\caption{TN3 --- Synthetic scaling $\{200, 500, 1000\}$ sách (kế hoạch ban đầu $\{1\text{K}, 3\text{K}, 5\text{K}, 10\text{K}\}$ bị cắt do giới hạn driver memory)}
+\label{tab:tn3-results}
+\begin{tabular}{rrrrrrr}
+\toprule
+\textbf{Size} & \textbf{$T_{\text{sig}}$} & \textbf{$T_{\text{LSH}}$} & \textbf{$T_{\text{BF}}^{(5)}$} & \textbf{$|$cand$|$} & \textbf{Speedup vs BF} \\
+\midrule
+200  & 7.572 & 663.589  & 4.179  & 217  & 0.006 \\
+500  & 8.172 & 1622.356 & 9.424  & 1354 & 0.006 \\
+1000 & 7.622 & 3224.083 & 59.019 & 5916 & 0.018 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{Images/experiments/tn3_time_speedup_vs_size.png}
+\caption{TN3 --- Trái: thời gian MinHash, LSH+pairs, và brute-force ($5$ queries) theo kích thước dataset. Phải: speedup brute-force $/$ LSH --- tăng dần ($0.006 \rightarrow 0.018$) khi $N$ tăng, dù vẫn $< 1$ ở vùng đo được.}
+\label{fig:tn3}
+\end{figure}
+
+\textbf{Diễn giải.} Thời gian MinHash gần như không đổi ($\sim 8$s) --- chi phối bởi Spark DAG init, không phải số sách. Thời gian LSH+pairs tăng siêu tuyến tính (663 $\rightarrow$ 3224s khi $N$ tăng 5$\times$, do cost của shuffle khi số candidate pairs tăng từ $217$ tới $5916$). Brute-force $5$-query tăng tuyến tính. Speedup tăng từ $0.006$ tới $0.018$ khi $N$ tăng $5\times$, cho thấy điểm hòa vốn LSH-vs-BF nằm \emph{ngoài} vùng đo được. \textbf{Chú ý:} synthetic copies có $J = 1.0$ nên các con số $|$cand$|$ bị thổi phồng so với corpus thật --- TN3 chỉ nên dùng để đọc \emph{xu hướng thời gian}, không phải absolute candidate count.
+
+\subsubsection{TN4 --- LSH vs Brute-force toàn diện}
+
+Mục tiêu: so sánh end-to-end LSH với exact pairwise Jaccard trên cùng $90$ sách thật, threshold $J \geq 0.5$. Cấu hình LSH: $n=100$, $b=20$, $r=5$.
+
+\begin{table}[H]
+\centering
+\caption{TN4 --- LSH vs Brute-force trên $90$ sách Gutenberg}
+\label{tab:tn4-results}
+\begin{tabular}{lcccccrr}
+\toprule
+\textbf{Method} & \textbf{Recall} & \textbf{Prec} & \textbf{F1} & \textbf{FPR} & \textbf{Selectivity} & \textbf{$|$cand$|$} & \textbf{Time (s)} \\
+\midrule
+LSH        & 1.0 & 1.0 & 1.0 & 0.0 & 0.001 & 4    & 1257.727 \\
+BruteForce & 1.0 & 1.0 & 1.0 & 0.0 & 1.000 & 4005 & 13.306   \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Speedup (BF / LSH) $= 13.306 / 1257.727 = 0.011\times$.}
+
+\textbf{Diễn giải.} LSH lọc xuống còn $4$ candidate trên tổng $4{,}005$ cặp ($\text{selectivity} = 0.001$) và phục hồi đủ $4/4$ cặp GT --- đúng nghĩa của LSH ở cả hai cực precision và recall. Tuy nhiên về wall time, ở $N = 90$ overhead Spark/JVM ($\sim 1257$s cho chưa đầy $4{,}000$ cặp) lớn hơn $\sim 95\times$ so với brute-force Python in-memory ($13.3$s). Đây là kết quả \emph{kỳ vọng được} ở vùng overhead-dominated; TN3 cho thấy speedup tăng monotone với $N$ ($0.006 \rightarrow 0.018$ khi $N: 200 \rightarrow 1000$), gợi ý điểm hòa vốn ở $N \gg 1000$ (xem Section~\ref{sec:plan} cho hướng phục hồi infrastructure để kiểm chứng).
+
+\subsection{Hạn chế của dataset hiện tại}
+\label{subsec:dataset-limits}
+
+Phân tích kết quả TN1--TN4 phơi bày 3 hạn chế chính của dataset 90 sách Project Gutenberg:
+
+\begin{enumerate}
+    \item \textbf{(H1) Quá ít cặp similar.} Trong 4005 cặp khả dĩ chỉ có \textbf{4 cặp} có $J \geq 0.5$, tương đương GT Positive Density $\approx 0.1\%$. Hệ quả: mọi cấu hình $(b, r)$ trong TN1 và mọi $n$ trong TN2 đều cho F1 $=$ 1.0, FPR $=$ 0 --- metric \emph{bão hòa}, không thể dùng để chọn config tốt nhất hay khẳng định trade-off Recall/FPR đặc trưng của LSH.
+
+    \item \textbf{(H2) Spark/JVM overhead chi phối ở scale nhỏ.} Tổng thời gian TN1 $\approx 1260$s gần như không đổi giữa 4 config $(b, r)$, cho thấy thuật toán LSH thực sự chỉ chiếm phần nhỏ; phần lớn là Spark session warm-up, shuffle, collect. Trong TN3 (scale tới 1000 sách synthetic), speedup vs brute-force chỉ đạt 0.006--0.018$\times$ --- LSH \emph{chậm hơn} brute-force Python. Đây không phải LSH dở mà là dataset chưa đủ lớn để khấu hao overhead. Ngoài ra, dữ liệu TN3 được tạo bằng \emph{nhân bản synthetic} (cặp $J = 1.0$) nên cũng không phản ánh phân bố similarity thực tế.
+
+    \item \textbf{(H3) Threshold $J \geq 0.5$ quá khắc nghiệt với corpus đa thể loại.} Project Gutenberg gồm tiểu thuyết, kịch, thơ, biên niên sử nhiều thời kỳ --- trung bình $J(A, B) < 0.1$. Threshold $0.5$ chỉ ``bắt'' được các trùng lặp gần như nguyên văn (cùng tác giả, ấn bản khác nhau). Một threshold linh động $\in \{0.2, 0.3, 0.5\}$ sẽ tạo ra nhiều positive hơn, giúp metric phân biệt được giữa các config.
+\end{enumerate}
+
+\subsection{Hướng cải thiện đánh giá}
+
+Để các metric ở Bảng 6.1--6.4 có sức phân biệt thực sự, đề xuất 5 hướng cải thiện sau (xếp theo mức độ ưu tiên):
+
+\begin{enumerate}
+    \item \textbf{Mở rộng dataset thật lên $\geq 2$K--$3$K sách.} Dataset 3K sách đã được thu thập từ Gutenberg (xem Section 7) nhưng chưa chạy thí nghiệm vì thiếu cluster. Khi chạy được, GT positives kỳ vọng tăng theo $O(N^2)$, đẩy GT Density lên mức metric không bão hòa.
+
+    \item \textbf{Tạo positives nhân tạo có kiểm soát.} Thay vì duplicate sinh $J = 1.0$, dùng kỹ thuật chèn paraphrase / partial overlap / shuffled sentences để sinh các cặp với $J \in \{0.3, 0.5, 0.7, 0.9\}$. Cách này tạo ra ``gradient similarity'' giúp đánh giá đường S-curve của LSH chính xác hơn nhiều so với synthetic duplication.
+
+    \item \textbf{Threshold sweep.} Chạy lại TN1/TN2 với GT threshold $\in \{0.2, 0.3, 0.5, 0.7\}$. Khi đó cấu hình $(b, r) = (10, 10)$ với threshold lý thuyết $\approx 0.79$ sẽ có Recall thấp ở threshold $0.3$, phân biệt được rõ với $(50, 2)$ có threshold $\approx 0.14$ --- chứng minh được trade-off đặc trưng của LSH banding.
+
+    \item \textbf{Tách Setup time khỏi Execution Time.} Đo riêng \texttt{T\_setup} (Spark init + load) và \texttt{T\_algo} (MinHash + LSH index + candidate pairs). Tính Speedup Ratio trên \texttt{T\_algo} thôi --- khi đó LSH sẽ thắng brute-force ngay cả ở $N = 90$.
+
+    \item \textbf{Benchmark public corpus.} Chạy lại pipeline trên các tập có ground-truth chuẩn hóa: SNAP web-document near-duplicates, arXiv abstracts, hoặc MS MARCO passages. Mục đích: đối chứng metric của hệ thống với các bài báo LSH/MinHash đã công bố.
+\end{enumerate}
+
+\textit{Hạn chế hạ tầng (HDFS+Spark cluster $\rightarrow$ Databricks Free Edition Serverless) và kế hoạch phục hồi --- xem Section~\ref{sec:plan}.}
