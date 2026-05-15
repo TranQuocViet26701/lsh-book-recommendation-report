@@ -1,5 +1,6 @@
 \newpage
 \section{Triển khai chi tiết}
+\label{sec:implementation}
 
 \subsection{Source Code Repository}
  
@@ -59,8 +60,6 @@ Toàn bộ quá trình tiền xử lý được thực hiện song song trên Sp
 4 & Tokenization & Tách từ (word-level hoặc character-level tùy chiến lược shingling) \\
 \hline
 5 & Loại bỏ stopwords & Sử dụng danh sách stopwords tiếng Anh (NLTK hoặc custom); giảm chiều, tăng chất lượng so sánh \\
-\hline
-6 & Stemming / Lemmatization \textit{(tùy chọn)} & Porter Stemmer hoặc WordNet Lemmatizer; chuẩn hóa biến thể từ \\
 \hline
 \end{tabularx}
 \end{table}
@@ -179,35 +178,3 @@ Hamming Distance \textit{(tham khảo)} & Số vị trí bit khác nhau & So sá
 
 Đề tài sử dụng \textbf{Jaccard Similarity} làm hàm đo chính vì nó tự nhiên phù hợp với biểu diễn shingle-set và được hỗ trợ trực tiếp bởi MinHash.
 
-\subsection{Đánh giá LSH trong bài toán Similarity Join (MRS Join)}
-
-\subsubsection{LSH phù hợp với Similarity Join ở mức độ nào?}
-
-\begin{table}[h!]
-\centering
-\caption{Đánh giá mức độ phù hợp của LSH cho Similarity Join}
-\label{tab:lsh-evaluation}
-\begin{tabularx}{\textwidth}{|l|X|}
-\hline
-\textbf{Tiêu chí} & \textbf{Đánh giá} \\
-\hline
-Tốc độ & LSH giảm số cặp cần so sánh từ $O(n^2)$ xuống $O(n \cdot k)$ với $k \ll n$, rất hiệu quả cho tập dữ liệu lớn \\
-\hline
-Chất lượng & LSH là phương pháp xấp xỉ --- có thể bỏ sót một số cặp tương tự (false negatives) hoặc trả về cặp không thực sự tương tự (false positives). Chất lượng phụ thuộc vào việc chọn tham số $b$, $r$ \\
-\hline
-Khả năng phân tán & Rất phù hợp với MapReduce/Spark: mỗi band có thể xử lý song song, bucketing tương tự reduce-by-key \\
-\hline
-Trade-off & Tăng $b$ (nhiều band) $\rightarrow$ tăng recall nhưng tăng false positives. Tăng $r$ (nhiều row/band) $\rightarrow$ tăng precision nhưng giảm recall \\
-\hline
-\end{tabularx}
-\end{table}
-
-\subsubsection{Ứng dụng thực tế của LSH Similarity Join}
-
-\begin{itemize}
-    \item \textbf{Near-duplicate detection:} Phát hiện bài viết/tài liệu sao chép trong kho dữ liệu lớn (ứng dụng trong anti-plagiarism, web deduplication).
-    \item \textbf{Recommendation systems:} Gợi ý sản phẩm/nội dung tương tự dựa trên đặc trưng nội dung (bài toán của đề tài này).
-    \item \textbf{Entity resolution:} Ghép nối các bản ghi trùng lặp trong cơ sở dữ liệu lớn (ví dụ: ghép tên khách hàng, địa chỉ).
-    \item \textbf{Genome/protein similarity:} So sánh chuỗi DNA/protein trong tin sinh học.
-    \item \textbf{Image retrieval:} Tìm ảnh tương tự trong kho ảnh lớn (kết hợp LSH với feature vector từ CNN).
-\end{itemize}

@@ -1,60 +1,6 @@
 \newpage
 \section{Tiến độ Thực hiện}
-
-\subsection{Công việc đã hoàn thành}
-
-\subsubsection{Thiết lập môi trường và Thu thập dữ liệu}
-
-\begin{itemize}
-    \item Khởi tạo Git repository với cấu trúc project chuẩn (45 files), sử dụng \texttt{uv} làm package manager, \texttt{Makefile} cho các lệnh phát triển và triển khai.
-    \item Xây dựng Docker dev environment với PySpark local mode + Jupyter Notebook, đảm bảo cả nhóm có thể phát triển và chạy thử trên cùng một môi trường.
-    \item Thu thập 3.000+ sách tiếng Anh từ Project Gutenberg dưới dạng plain text (.txt).
-    \item Tạo sample dataset 100 sách cho môi trường dev, giúp iterate nhanh khi phát triển.
-    \item Xây dựng script trích xuất metadata (tên sách, tác giả, thể loại, năm xuất bản) từ Gutenberg header, lưu dưới dạng Parquet.
-\end{itemize}
-
-\subsubsection{Preprocessing Pipeline}
-
-Hoàn thành toàn bộ pipeline tiền xử lý văn bản, chạy trên PySpark:
-
-\begin{enumerate}
-    \item \textbf{Remove Gutenberg boilerplate:} Sử dụng regex để detect và loại bỏ header/footer markers (\texttt{*** START/END OF THE PROJECT GUTENBERG EBOOK ***}).
-    \item \textbf{Lowercase + Regex clean:} Chuyển toàn bộ text sang chữ thường, loại bỏ ký tự đặc biệt và số.
-    \item \textbf{Tokenization:} Tách văn bản thành các từ (word-level).
-    \item \textbf{Stopword removal:} Loại bỏ English stopwords sử dụng danh sách NLTK.
-\end{enumerate}
-
-Output được lưu dưới dạng Parquet với schema \texttt{[book\_id, tokens, num\_tokens]}. Unit tests đã viết và pass trên sample data.
-
-\subsubsection{Thuật toán LSH Core}
-
-Triển khai đầy đủ 3 module chính của thuật toán LSH:
-
-\begin{itemize}
-    \item \textbf{k-Shingling (\texttt{shingling.py}):} Tạo word-level trigrams ($k{=}3$) từ cleaned tokens. Mỗi cuốn sách được biểu diễn bằng một tập hợp shingle.
-    \item \textbf{MinHash (\texttt{minhash.py}):} Tính MinHash signatures với $n$ hàm hash ($n{=}100$ trên cluster). Sử dụng hash family $h(x) = (ax + b) \mod p$. Đã verify tính chất $P(h_{\min}(A) = h_{\min}(B)) \approx J(A,B)$ trên sample data.
-    \item \textbf{LSH Banding (\texttt{lsh.py}):} Chia signature thành $b{=}20$ bands $\times$ $r{=}5$ rows. Hash mỗi band vào bucket. Hai tài liệu là candidates nếu chia sẻ ít nhất 1 bucket. Threshold $\approx 0.55$.
-\end{itemize}
-
-Signatures và LSH index được persist dưới dạng Parquet. Unit tests cho cả 3 module đã pass.
-
-\subsubsection{Query Module}
-
-Hoàn thành module truy vấn sách tương tự:
-
-\begin{center}
-\texttt{book\_id} $\rightarrow$ lookup signature $\rightarrow$ tìm candidates cùng bucket $\rightarrow$ exact Jaccard $\rightarrow$ rank $\rightarrow$ Top-K
-\end{center}
-
-Đã test thành công trên sample dataset: query một cuốn sách trả về danh sách Top-K sách tương tự kèm Jaccard score.
-
-\subsection{Công việc đang triển khai}
-
-\begin{itemize}
-    \item \textbf{FastAPI server:} Thiết kế xong tất cả endpoints (\texttt{GET /books}, \texttt{GET /similar/\{id\}}, \texttt{POST /datasets/upload}, \texttt{POST /ingest}, \texttt{GET /metrics}). Đang implement.
-    \item \textbf{Streamlit frontend:} 4 trang (Browse Books, Similar Books, Dataset Management, Dashboard) -- scaffold đã tạo, đang implement logic kết nối API.
-    \item \textbf{Dataset management API:} Upload .txt/.zip, validate, trigger ingestion pipeline -- đang implement.
-\end{itemize}
+\label{sec:plan}
 
 \subsection{Công việc bị chặn (Blocked)}
 
@@ -65,26 +11,62 @@ Hoàn thành module truy vấn sách tương tự:
 \toprule
 \textbf{Task} & \textbf{Lý do} & \textbf{Giải pháp} \\
 \midrule
-Thuê VPS + cài Hadoop cluster (3 nodes) & Chưa có free cloud credits (GitHub Student Pack / Azure for Students chưa được duyệt) & Đang đăng ký lại GitHub Student Developer Pack $\rightarrow$ DigitalOcean. Backup: Google Colab / Kaggle \\
+Thuê VPS + cài Hadoop cluster (3 nodes) & Chưa có free cloud credits (GitHub Student Pack / Azure for Students chưa được duyệt) & \textbf{Đã chuyển hướng sang Databricks Free Edition (Serverless)} cho TN1--TN4. Đăng ký credits vẫn được tiếp tục để mở rộng quy mô (xem \S\ref{subsec:limitations-future}). \\
 \midrule
-Config system dev/cluster env switching & Phụ thuộc VPS cluster ở trên -- không có cluster thì không test được config switching & Sẽ hoàn thành ngay khi có VPS. Hiện tại dùng \texttt{LSH\_ENV=dev} \\
+Config system dev/cluster env switching & Ban đầu phụ thuộc VPS cluster & Đã giải quyết bằng cách thêm nhánh \texttt{LSH\_ENV=databricks} song song với \texttt{LSH\_ENV=dev}; code dùng shim \texttt{\_maybe\_cache(df)} để tương thích cả Serverless lẫn local Spark. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Hiện tại toàn bộ phát triển và testing đều chạy trên \textbf{Docker local mode} (PySpark single-node). Các kết quả thuật toán đã verify đúng trên sample data, nhưng chưa đo được performance metrics thực sự (scalability, speedup) do thiếu cluster.
+Pipeline phát triển hằng ngày chạy trên \textbf{Docker local mode} (PySpark single-node) với sample $100$ sách; các thí nghiệm performance TN1--TN4 đã chạy trên \textbf{Databricks Free Edition Serverless} với $90$ sách thật (TN1/TN2/TN4) và tối đa $1{,}000$ sách synthetic (TN3). Quy mô bị giới hạn bởi driver memory của Free Edition --- xem \S\ref{subsec:limitations-future} để biết chi tiết bài học và hướng mở rộng.
 
-\subsection{Công việc tiếp theo}
+\subsection{Hạn chế \& Hướng phát triển}
+\label{subsec:limitations-future}
+
+\subsubsection{Hạn chế hạ tầng --- bài học từ pivot HDFS+Spark $\rightarrow$ Databricks Free Edition}
+
+Kế hoạch hạ tầng ban đầu (Section~\ref{sec:techstack} và \ref{sec:implementation}) là cluster Hadoop $3$ nút --- HDFS cho lưu trữ thô, Spark on YARN cho tính toán, dataset mục tiêu $3{,}000$--$10{,}000$ sách. Các trở ngại thực tế:
+
+\begin{itemize}
+    \item \textbf{Cloud credits chưa được duyệt:} GitHub Student Developer Pack và Azure for Students không cấp credits đúng tiến độ; thuê VPS tự túc vượt ngân sách của một mini-project học kỳ.
+    \item \textbf{Triển khai Hadoop trên VPS đơn lẻ tốn chi phí thiết lập:} cấu hình HDFS NameNode + 2 DataNode, YARN ResourceManager, Spark on YARN trong môi trường phát triển một học viên là gánh nặng vận hành lớn so với giá trị mang lại cho một dataset $\sim 5$ GB.
+\end{itemize}
+
+Nhóm chuyển sang \textbf{Databricks Free Edition (Serverless)}. Đánh đổi cụ thể:
+
+\begin{itemize}
+    \item \textbf{Lợi:} không cần quản trị cluster; auto-mount Git repo qua \texttt{/Workspace/Repos/}; hỗ trợ notebook + lịch sử run; dùng được cho TN1--TN4 mà không tốn chi phí.
+    \item \textbf{Hại:} (i) mất quyền truy cập \texttt{spark.sparkContext} (lỗi \texttt{JVM\_AT\-TRI\-BUTE\_NOT\_SUPPORTED}); (ii) \texttt{PERSIST TABLE} bị từ chối với \texttt{SQLSTATE 0A000} $\rightarrow$ phải viết shim \texttt{\_maybe\_cache(df)} để code chạy được cả local và serverless; (iii) compute dùng chung $\rightarrow$ Spark/JVM warm-up + shuffle chi phối thời gian end-to-end ở scale nhỏ; (iv) driver memory hẹp ép TN3 phải cắt từ kế hoạch $\{1\text{K}, 3\text{K}, 5\text{K}, 10\text{K}\}$ sách xuống còn $\{200, 500, 1000\}$.
+\end{itemize}
+
+\subsubsection{Phạm vi đã thu hẹp --- không phát triển API \& Frontend}
+
+Kế hoạch ban đầu bao gồm \textbf{FastAPI server} (các endpoint \texttt{GET /books}, \texttt{GET /similar/\{id\}}, \texttt{POST /datasets/upload}, \texttt{POST /ingest}, \texttt{GET /metrics}), \textbf{Streamlit frontend} 4 trang (Browse Books, Similar Books, Dataset Management, Dashboard), và \textbf{Dataset management API} cho upload/ingest. Tuy nhiên trong giai đoạn cuối, nhóm quyết định \textbf{thu hẹp phạm vi} và chỉ tập trung vào phần đo lường:
+
+\begin{itemize}
+    \item \textbf{Lý do:} thời gian giới hạn của mini-project học kỳ cộng với chi phí pivot hạ tầng (HDFS+Spark $\rightarrow$ Databricks Serverless) đã tiêu hao quỹ thời gian dự kiến cho API/Frontend; ưu tiên giá trị học thuật của các thí nghiệm metric (TN1--TN4) hơn là demo UI.
+    \item \textbf{Phạm vi giữ lại:} core algorithm (Shingling + MinHash + LSH Banding), Query Module (CLI/programmatic, gọi từ notebook để lấy Top-K), và 4 thí nghiệm đánh giá.
+    \item \textbf{Hệ quả với báo cáo:} không có demo end-to-end qua giao diện; người đọc xem kết quả qua bảng và biểu đồ ở \S\ref{subsec:tn-results}, không phải qua dashboard.
+\end{itemize}
+
+\textbf{Hướng phát triển khi mở rộng phạm vi:} các endpoint và scaffold Streamlit đã được thiết kế (chưa implement) có thể được hoàn thiện trong một học kỳ kế tiếp; tầng query real-time mô tả ở mục~3 dưới đây sẽ là backend tự nhiên cho \texttt{GET /similar/\{id\}}, và dashboard metrics có thể đọc trực tiếp từ \texttt{data/output/experiment\_results.csv} mà notebook đã xuất.
+
+\subsubsection{Hệ quả với 4 thí nghiệm}
+
+Vì $N \leq 1{,}000$ và GT chỉ có $4$ cặp $J \geq 0.5$ trong $4{,}005$ cặp:
+
+\begin{itemize}
+    \item TN1, TN2, TN4 đều cho $\text{F1} = 1.0$ trên mọi cấu hình --- metric chất lượng \emph{bão hòa}.
+    \item TN3 speedup vs brute-force chỉ đạt $0.006 \rightarrow 0.018$ khi $N: 200 \rightarrow 1000$; TN4 speedup $= 0.011\times$ ở $N = 90$.
+    \item Đây là \textbf{vùng overhead-dominated} đúng như lý thuyết LSH dự đoán: thời gian Spark/JVM init lớn hơn gain của LSH banding khi số cặp brute-force còn nhỏ.
+    \item Đường cong TN3 đang dốc lên ($3\times$ khi $N$ tăng $5\times$), gợi ý điểm hòa vốn nằm bên ngoài quy mô đo được --- \emph{không có dấu hiệu nào cho thấy LSH sẽ tiếp tục thua brute-force ở $N \geq 5{,}000$.}
+\end{itemize}
+
+\subsubsection{Hướng phát triển hạ tầng}
 
 \begin{enumerate}
-    \item \textbf{Hoàn tất API \& Frontend:} FastAPI server + Streamlit 4 pages + integration test end-to-end.
-    \item \textbf{Chạy 4 thí nghiệm:}
-    \begin{itemize}
-        \item TN1: Thay đổi tham số $b, r$ -- đo Recall, Precision, F1, FPR, vẽ S-curve.
-        \item TN2: Thay đổi số hàm hash $n$ (50, 100, 150, 200) -- đo Recall vs Execution Time.
-        \item TN3: Scalability test (1K $\rightarrow$ 3K $\rightarrow$ 5K $\rightarrow$ 10K sách) -- đo Execution Time, Speedup.
-        \item TN4: LSH vs Brute-force -- so sánh toàn diện tất cả metrics.
-    \end{itemize}
-    \item \textbf{Dashboard metrics:} Streamlit page hiển thị bucket distribution, precision/recall charts, scalability graphs.
-    \item \textbf{Báo cáo \& Demo:} Viết report kết quả thí nghiệm, cập nhật slide, code cleanup, chuẩn bị demo live.
+    \item \textbf{Khi xin được credits} (DigitalOcean / GCP / AWS Educate / Azure for Students lần $2$): dựng cluster $\geq 3$ worker, $\geq 16$ GB driver memory; chạy lại TN3 ở $5{,}000$--$10{,}000$ sách để cắt qua điểm hòa vốn LSH-vs-BF; chạy lại TN4 trên dataset đủ lớn để LSH thắng brute-force về wall time, không chỉ về selectivity.
+    \item \textbf{Tối ưu code cho Databricks Serverless} ngay cả khi vẫn ở Free Edition: gộp các bước MinHash $+$ LSH index $+$ candidate-pair collection trong cùng một Spark job để giảm số lần shuffle; tách \texttt{T\_setup} (Spark/JVM init + load Parquet) khỏi \texttt{T\_algo} (MinHash + LSH math) trong code đo thời gian, để báo speedup công bằng (ý này cũng được liệt kê ở \S6.7).
+    \item \textbf{Triển khai tầng query real-time} tách khỏi pipeline batch: tải LSH index từ Parquet vào memory một lần, sau đó mỗi truy vấn chỉ tốn $O(b)$ bucket lookup. Đây là use-case mà overhead Spark không còn chi phối, sẽ thể hiện đúng giá trị thực tế của LSH cho người dùng cuối.
+    \item \textbf{Migrate metadata $+$ raw data sang HDFS thật} ngay khi có cluster: cấu trúc thư mục đã thiết kế (\S\ref{sec:implementation}, Listing~\ref{lst:hdfs-structure}) có thể tái sử dụng nguyên vẹn; chỉ cần thay đường dẫn \texttt{config.DATA\_*\_PATH}.
 \end{enumerate}
